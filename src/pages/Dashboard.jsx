@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios.js";
 import Modal from "../components/Modal.jsx";
+import TagInput from "../components/TagInput.jsx";
+import OwnerSelect from "../components/OwnerSelect.jsx";
 
 const STATUSES = ["To Do", "In Progress", "Completed", "Blocked"];
 
@@ -17,120 +19,48 @@ function sortTasks(tasks, sort) {
   return tasks;
 }
 
-// Reusable creatable multi-select for tags
-const TagInput = ({ value, onChange, suggestions = [] }) => {
-  const [input, setInput] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
-  const addTag = (tag) => {
-    const clean = tag.trim();
-    if (!clean) return;
-    if (value.some((t) => t.toLowerCase() === clean.toLowerCase())) {
-      setInput("");
-      return;
-    }
-    onChange([...value, clean]);
-    setInput("");
-  };
-
-  const removeTag = (tag) => {
-    onChange(value.filter((t) => t !== tag));
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addTag(input);
-    } else if (e.key === "Backspace" && !input && value.length) {
-      removeTag(value[value.length - 1]);
-    }
-  };
-
-  const filteredSuggestions = suggestions.filter(
-    (s) =>
-      !value.some((t) => t.toLowerCase() === s.toLowerCase()) &&
-      (input === "" || s.toLowerCase().includes(input.toLowerCase()))
-  );
-
-  return (
-    <div className="tag-input">
-      <div className="tag-input-chips">
-        {value.map((tag) => (
-          <span key={tag} className="tag-chip">
-            {tag}
-            <button type="button" onClick={() => removeTag(tag)} aria-label={`Remove ${tag}`}>
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setShowSuggestions(true)}
-          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-          placeholder={value.length ? "" : "Type and press Enter to add a tag"}
-        />
-      </div>
-      {showSuggestions && (filteredSuggestions.length > 0 || input) && (
-        <div className="tag-suggestions">
-          {filteredSuggestions.map((s) => (
-            <button
-              type="button"
-              key={s}
-              className="tag-suggestion-item"
-              onMouseDown={() => addTag(s)}
-            >
-              {s}
-            </button>
-          ))}
-          {input && !suggestions.some((s) => s.toLowerCase() === input.toLowerCase()) && (
-            <button type="button" className="tag-suggestion-item tag-suggestion-new" onMouseDown={() => addTag(input)}>
-              + Create "{input}"
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
+const emptyTask = {
+  name: "",
+  project: "",
+  team: "",
+  tags: [],
+  owners: [],
+  dueDate: "",
+  estimatedTime: 1,
+  status: "To Do",
 };
 
 const Dashboard = () => {
   const [projects, setProjects] = useState([]);
   const [teams, setTeams] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [allTags, setAllTags] = useState([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [projectForm, setProjectForm] = useState({ name: "", description: "" });
-  const [taskForm, setTaskForm] = useState({
-    name: "",
-    project: "",
-    team: "",
-    tags: [],
-    dueDate: "",
-    estimatedTime: 1,
-    status: "To Do",
-  });
+  const [taskForm, setTaskForm] = useState(emptyTask);
 
   const loadProjects = () => api.get("/projects").then((r) => setProjects(r.data));
   const loadTeams = () => api.get("/teams").then((r) => setTeams(r.data));
+  const loadUsers = () => api.get("/auth/users").then((r) => setUsers(r.data));
+  const loadTags = () => api.get("/tags").then((r) => setAllTags(r.data));
   const loadTasks = () => {
     const qs = searchParams.toString();
     api.get(`/tasks${qs ? `?${qs}` : ""}`).then((r) => setTasks(r.data));
   };
 
-  useEffect(() => { loadProjects(); loadTeams(); }, []);
+  useEffect(() => { loadProjects(); loadTeams(); loadUsers(); loadTags(); }, []);
   useEffect(() => { loadTasks(); }, [searchParams]);
 
-  // Build a de-duplicated list of tags already used elsewhere, for suggestions
-  const existingTags = useMemo(() => {
-    const set = new Set();
+  const tagNames = useMemo(() => {
+    const set = new Set(allTags.map((t) => t.name));
     tasks.forEach((t) => (t.tags || []).forEach((tag) => set.add(tag)));
     return Array.from(set).sort();
-  }, [tasks]);
+  }, [allTags, tasks]);
 
   const updateFilter = (key, value) => {
     const next = new URLSearchParams(searchParams);
@@ -148,14 +78,16 @@ const Dashboard = () => {
 
   const createTask = async (e) => {
     e.preventDefault();
-    const payload = {
-      ...taskForm,
-      estimatedTime: Number(taskForm.estimatedTime),
-    };
-    await api.post("/tasks", payload);
-    setTaskForm({ name: "", project: "", team: "", tags: [], dueDate: "", estimatedTime: 1, status: "To Do" });
-    setShowTaskModal(false);
-    loadTasks();
+    const payload = { ...taskForm, estimatedTime: Number(taskForm.estimatedTime) };
+    try {
+      await api.post("/tasks", payload);
+      setTaskForm(emptyTask);
+      setShowTaskModal(false);
+      loadTasks();
+      loadTags();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to create task");
+    }
   };
 
   return (
@@ -191,6 +123,14 @@ const Dashboard = () => {
         <select value={searchParams.get("project") || ""} onChange={(e) => updateFilter("project", e.target.value)}>
           <option value="">All projects</option>
           {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+        </select>
+        <select value={searchParams.get("owner") || ""} onChange={(e) => updateFilter("owner", e.target.value)}>
+          <option value="">All owners</option>
+          {users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}
+        </select>
+        <select value={searchParams.get("tags") || ""} onChange={(e) => updateFilter("tags", e.target.value)}>
+          <option value="">All tags</option>
+          {tagNames.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={searchParams.get("sort") || ""} onChange={(e) => updateFilter("sort", e.target.value)}>
           <option value="">Sort: Newest</option>
@@ -242,11 +182,18 @@ const Dashboard = () => {
               {teams.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
             </select>
 
+            <label>Owners</label>
+            <OwnerSelect
+              value={taskForm.owners}
+              onChange={(owners) => setTaskForm({ ...taskForm, owners })}
+              users={users}
+            />
+
             <label>Tags</label>
             <TagInput
               value={taskForm.tags}
               onChange={(tags) => setTaskForm({ ...taskForm, tags })}
-              suggestions={existingTags}
+              suggestions={tagNames}
             />
 
             <label>Select Due date</label>

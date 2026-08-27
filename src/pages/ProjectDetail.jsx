@@ -35,7 +35,7 @@ const ProjectDetail = () => {
               <td>{t.name}</td>
               <td>{t.owners?.map((o) => o.name).join(", ") || "—"}</td>
               <td>{t.team?.name || "—"}</td>
-              <td>{t.timeToComplete}</td>
+              <td>{t.estimatedTime ?? "—"}</td>
               <td><span className={badgeClass(t.status)}>{t.status}</span></td>
             </tr>
           ))}

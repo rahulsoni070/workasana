@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api/axios.js";
+import PasswordInput from "../components/PasswordInput.jsx";
 
 const Signup = () => {
   const [name, setName] = useState("");
@@ -32,7 +33,7 @@ const Signup = () => {
         <label>Email</label>
         <input type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <label>Password</label>
-        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required />
         <button type="submit">Sign up</button>
         <p className="auth-foot">Have an account? <Link to="/login">Login</Link></p>
       </form>

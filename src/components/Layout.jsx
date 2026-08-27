@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const Layout = () => {
@@ -9,7 +9,7 @@ const Layout = () => {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <div className="brand">workasana</div>
+        <Link to="/" className="brand">workasana</Link>
         <nav className="side-nav">
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/teams">Teams</NavLink>
