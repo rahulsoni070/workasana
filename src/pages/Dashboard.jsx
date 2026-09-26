@@ -16,7 +16,7 @@ const badgeClass = (status) => {
 
 function sortTasks(tasks, sort) {
   if (sort === "time") return [...tasks].sort((a, b) => a.estimatedTime - b.estimatedTime);
-  return tasks;
+  return [...tasks].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 const emptyTask = {
